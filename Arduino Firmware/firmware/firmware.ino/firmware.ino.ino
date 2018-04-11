@@ -3,20 +3,38 @@
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
 #include "SerialCommands.h"
-#include <WiFiManager.h>
+
+#define WIFI_LED 13
 
 ESP8266WebServer server(80);
 
-const int led = 13;
+bool waitForWiFi() {
+  int connectAttemptCount = 0;
+  while (WiFi.status() != WL_CONNECTED && connectAttemptCount < 30) {
+    digitalWrite(WIFI_LED, !digitalRead(WIFI_LED));
+    Serial.println("Waiting for WiFi to connect...");
+    delay(500);
+    connectAttemptCount++;
+  }
+
+  if (connectAttemptCount < 30) {
+    Serial.println("Connected!");
+    return true;
+  } else {
+    Serial.println("Connection failed!");
+    return false;
+  }
+}
 
 void handleRoot() {
-  digitalWrite(led, 1);
+  digitalWrite(WIFI_LED, HIGH);
   server.send(200, "text/plain", "hello from esp8266!");
-  digitalWrite(led, 0);
+  delay(100);
+  digitalWrite(WIFI_LED, LOW);
 }
 
 void handleNotFound(){
-  digitalWrite(led, 1);
+  digitalWrite(WIFI_LED, HIGH);
   String message = "File Not Found\n\n";
   message += "URI: ";
   message += server.uri();
@@ -29,16 +47,19 @@ void handleNotFound(){
     message += " " + server.argName(i) + ": " + server.arg(i) + "\n";
   }
   server.send(404, "text/plain", message);
-  digitalWrite(led, 0);
+  delay(100);
+  digitalWrite(WIFI_LED, LOW);
 }
 
 void setup(void){;
+  pinMode(WIFI_LED, OUTPUT);
+
   Serial.begin(115200);
 
-  Serial.println("Starting WiFi Manager");
-  WiFiManager wifiManager;
-  wifiManager.autoConnect("SETUP");
+  WiFi.begin();
   WiFi.persistent(true);
+
+  waitForWiFi();
 
   Serial.println("Starting HTTP Server");
   server.on("/", handleRoot);
@@ -49,6 +70,12 @@ void setup(void){;
 }
 
 void loop(void){
+  if (WiFi.status() == WL_CONNECTED) {
+    digitalWrite(WIFI_LED, LOW);
+  } else {
+    digitalWrite(WIFI_LED, HIGH);
+  }
+  
   server.handleClient();
   serialLoop();
 }
