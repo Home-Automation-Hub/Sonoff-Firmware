@@ -3,10 +3,14 @@
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
 #include "SerialCommands.h"
+#include "DHT.h"
 
 #define WIFI_LED 13
+#define DHT_PIN 14
+#define DHT_TYPE DHT21
 
 ESP8266WebServer server(80);
+DHT dht(DHT_PIN, DHT_TYPE);
 
 bool waitForWiFi() {
   int connectAttemptCount = 0;
@@ -30,6 +34,18 @@ void handleRoot() {
   digitalWrite(WIFI_LED, HIGH);
   server.send(200, "text/plain", "hello from esp8266!");
   delay(100);
+  digitalWrite(WIFI_LED, LOW);
+}
+
+void handleTemp() {
+  digitalWrite(WIFI_LED, HIGH);
+
+  float temperature = dht.readTemperature();
+  char buf[6];
+
+  dtostrf(temperature, 6, 2, buf);
+  
+  server.send(200, "text/plain", buf);
   digitalWrite(WIFI_LED, LOW);
 }
 
@@ -63,8 +79,11 @@ void setup(void){;
 
   Serial.println("Starting HTTP Server");
   server.on("/", handleRoot);
+  server.on("/temperature", handleTemp);
   server.onNotFound(handleNotFound);
   server.begin();
+
+  dht.begin();
 
   serialSetup();
 }
