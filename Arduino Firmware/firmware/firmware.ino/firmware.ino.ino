@@ -49,6 +49,32 @@ void handleTemp() {
   digitalWrite(WIFI_LED, LOW);
 }
 
+void handleHumidity() {
+  digitalWrite(WIFI_LED, HIGH);
+
+  float humidity = dht.readHumidity();
+  char buf[6];
+
+  dtostrf(humidity, 6, 2, buf);
+  
+  server.send(200, "text/plain", buf);
+  digitalWrite(WIFI_LED, LOW);
+}
+
+void handleHeatIndex() {
+  digitalWrite(WIFI_LED, HIGH);
+
+  float temperature = dht.readTemperature();
+  float humidity = dht.readHumidity();
+  float heatIndex = dht.computeHeatIndex(temperature, humidity, false);
+  char buf[6];
+
+  dtostrf(heatIndex, 6, 2, buf);
+  
+  server.send(200, "text/plain", buf);
+  digitalWrite(WIFI_LED, LOW);
+}
+
 void handleNotFound(){
   digitalWrite(WIFI_LED, HIGH);
   String message = "File Not Found\n\n";
@@ -80,6 +106,8 @@ void setup(void){;
   Serial.println("Starting HTTP Server");
   server.on("/", handleRoot);
   server.on("/temperature", handleTemp);
+  server.on("/humidity", handleHumidity);
+  server.on("/heat_index", handleHeatIndex);
   server.onNotFound(handleNotFound);
   server.begin();
 
