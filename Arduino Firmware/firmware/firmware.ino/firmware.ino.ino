@@ -15,6 +15,7 @@
 #define SENSOR_LED 13
 #define DHT_PIN 14
 #define DHT_TYPE DHT21
+#define DEFAULT_CH_TIMEOUT_SECONDS 30;
 
 ESP8266WebServer server(80);
 DHT dht(DHT_PIN, DHT_TYPE);
@@ -25,6 +26,7 @@ int ledNextToggleDelay = 0;
 bool chIsOn = false;
 bool chSetOn = false;
 bool defaultSensorLedStatus = HIGH;
+int chTimeoutSeconds = DEFAULT_CH_TIMEOUT_SECONDS;
 
 bool waitForWiFi() {
   int connectAttemptCount = 0;
@@ -85,6 +87,13 @@ void handleChOn() {
   chIsOn = true;
   chSetOn = true;
   chOnTime = millis();
+
+  chTimeoutSeconds = DEFAULT_CH_TIMEOUT_SECONDS;
+  for (int i = 0; i < server.args(); i++) {
+    if (strcmp(server.argName(i).c_str(), "timeout") == 0) {
+      chTimeoutSeconds = atoi(server.arg(i).c_str());
+    }
+  } 
 
   server.send(200, "text/plain", "ok");
   digitalWrite(WIFI_LED, LOW);
@@ -167,7 +176,7 @@ void loop(void){
 //    digitalWrite(WIFI_LED, HIGH);
 //  }
 
-  if (chIsOn && (millis() - chOnTime) > 10000) {
+  if (chIsOn && (millis() - chOnTime) > (chTimeoutSeconds * 1000)) {
     digitalWrite(CH_PIN, LOW);
     chIsOn = false;
   }
