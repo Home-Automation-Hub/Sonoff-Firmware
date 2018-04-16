@@ -7,6 +7,10 @@
 
 #define CH_PIN 12
 #define WIFI_LED 13
+// When changing the sensor LED pin to the correct
+// GPIO one, also change the digitalWrite and digitalRead
+// calls to reverse HIGH/LOW (Pin 13 needs pulled low for
+// the LED to light!)
 //#define SENSOR_LED 4
 #define SENSOR_LED 13
 #define DHT_PIN 14
@@ -17,8 +21,10 @@ DHT dht(DHT_PIN, DHT_TYPE);
 
 unsigned long chOnTime;
 unsigned long ledToggledTime;
+int ledNextToggleDelay = 0;
 bool chIsOn = false;
 bool chSetOn = false;
+bool defaultSensorLedStatus = HIGH;
 
 bool waitForWiFi() {
   int connectAttemptCount = 0;
@@ -104,6 +110,22 @@ void handleChOff() {
   digitalWrite(WIFI_LED, LOW);
 }
 
+void handleSensorLedOn() {
+  digitalWrite(WIFI_LED, HIGH);
+  defaultSensorLedStatus = LOW;
+
+  server.send(200, "text/plain", "ok");
+  digitalWrite(WIFI_LED, LOW);
+}
+
+void handleSensorLedOff() {
+  digitalWrite(WIFI_LED, HIGH);
+  defaultSensorLedStatus = HIGH;
+
+  server.send(200, "text/plain", "ok");
+  digitalWrite(WIFI_LED, LOW);
+}
+
 void handleNotFound(){
   digitalWrite(WIFI_LED, HIGH);
   String message = "File Not Found\n\n";
@@ -140,6 +162,8 @@ void setup(void){;
   server.on("/heat_index", handleHeatIndex);
   server.on("/chon", handleChOn);
   server.on("/choff", handleChOff);
+  server.on("/sensorLedOn", handleSensorLedOn);
+  server.on("/sensorLedOff", handleSensorLedOff);
   server.onNotFound(handleNotFound);
   server.begin();
 
@@ -161,14 +185,22 @@ void loop(void){
   }
 
   if (chIsOn && chSetOn) {
-    digitalWrite(SENSOR_LED, LOW);
+    if ((millis() - ledToggledTime) > ledNextToggleDelay) {
+      digitalWrite(SENSOR_LED, !digitalRead(SENSOR_LED));
+      ledToggledTime = millis();
+      if (!digitalRead(SENSOR_LED)) {
+        ledNextToggleDelay = 1000;
+      } else {
+        ledNextToggleDelay = 100;
+      }
+    }
   } else if (!chIsOn && chSetOn) {
     if ((millis() - ledToggledTime) > 250) {
       digitalWrite(SENSOR_LED, !digitalRead(SENSOR_LED));
       ledToggledTime = millis();
     }
   } else {
-    digitalWrite(SENSOR_LED, HIGH);
+    digitalWrite(SENSOR_LED, defaultSensorLedStatus);
   }
   
   server.handleClient();
