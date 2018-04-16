@@ -51,41 +51,31 @@ void handleRoot() {
   digitalWrite(WIFI_LED, LOW);
 }
 
-void handleTemp() {
-  digitalWrite(WIFI_LED, HIGH);
-
-  float temperature = dht.readTemperature();
-  char buf[6];
-
-  dtostrf(temperature, 6, 2, buf);
-  
-  server.send(200, "text/plain", buf);
-  digitalWrite(WIFI_LED, LOW);
-}
-
-void handleHumidity() {
-  digitalWrite(WIFI_LED, HIGH);
-
-  float humidity = dht.readHumidity();
-  char buf[6];
-
-  dtostrf(humidity, 6, 2, buf);
-  
-  server.send(200, "text/plain", buf);
-  digitalWrite(WIFI_LED, LOW);
-}
-
-void handleHeatIndex() {
+void handleReadSensors() {
   digitalWrite(WIFI_LED, HIGH);
 
   float temperature = dht.readTemperature();
   float humidity = dht.readHumidity();
   float heatIndex = dht.computeHeatIndex(temperature, humidity, false);
-  char buf[6];
 
-  dtostrf(heatIndex, 6, 2, buf);
+  char temperatureStr[7];
+  char humidityStr[7];
+  char heatIndexStr[7];
   
-  server.send(200, "text/plain", buf);
+  dtostrf(temperature, 6, 2, temperatureStr);
+  dtostrf(humidity, 6, 2, humidityStr);
+  dtostrf(heatIndex, 6, 2, heatIndexStr);
+
+  String response = "{";
+  response += "\n  temperature: ";
+  response += temperatureStr;
+  response += ",\n  humidity: ";
+  response += humidityStr;
+  response += ",\n  heatIndex: ";
+  response += heatIndexStr;
+  response += "\n}\n";
+  
+  server.send(200, "application", response);
   digitalWrite(WIFI_LED, LOW);
 }
 
@@ -157,9 +147,7 @@ void setup(void){;
 
   Serial.println("Starting HTTP Server");
   server.on("/", handleRoot);
-  server.on("/temperature", handleTemp);
-  server.on("/humidity", handleHumidity);
-  server.on("/heat_index", handleHeatIndex);
+  server.on("/read_sensors", handleReadSensors);
   server.on("/chon", handleChOn);
   server.on("/choff", handleChOff);
   server.on("/sensorLedOn", handleSensorLedOn);
