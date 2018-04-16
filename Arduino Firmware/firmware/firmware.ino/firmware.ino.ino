@@ -77,7 +77,7 @@ void handleReadSensors() {
   response += heatIndexStr;
   response += "\n}\n";
   
-  server.send(200, "application", response);
+  server.send(200, "application/json", response);
   digitalWrite(WIFI_LED, LOW);
 }
 
