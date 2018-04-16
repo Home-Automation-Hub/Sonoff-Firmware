@@ -5,12 +5,20 @@
 #include "SerialCommands.h"
 #include "DHT.h"
 
+#define CH_PIN 12
 #define WIFI_LED 13
+//#define SENSOR_LED 4
+#define SENSOR_LED 13
 #define DHT_PIN 14
 #define DHT_TYPE DHT21
 
 ESP8266WebServer server(80);
 DHT dht(DHT_PIN, DHT_TYPE);
+
+unsigned long chOnTime;
+unsigned long ledToggledTime;
+bool chIsOn = false;
+bool chSetOn = false;
 
 bool waitForWiFi() {
   int connectAttemptCount = 0;
@@ -75,6 +83,27 @@ void handleHeatIndex() {
   digitalWrite(WIFI_LED, LOW);
 }
 
+void handleChOn() {
+  digitalWrite(WIFI_LED, HIGH);
+  digitalWrite(CH_PIN, HIGH);
+  chIsOn = true;
+  chSetOn = true;
+  chOnTime = millis();
+
+  server.send(200, "text/plain", "ok");
+  digitalWrite(WIFI_LED, LOW);
+}
+
+void handleChOff() {
+  digitalWrite(WIFI_LED, HIGH);
+  digitalWrite(CH_PIN, LOW);
+  chIsOn = false;
+  chSetOn = false;
+
+  server.send(200, "text/plain", "ok");
+  digitalWrite(WIFI_LED, LOW);
+}
+
 void handleNotFound(){
   digitalWrite(WIFI_LED, HIGH);
   String message = "File Not Found\n\n";
@@ -95,6 +124,7 @@ void handleNotFound(){
 
 void setup(void){;
   pinMode(WIFI_LED, OUTPUT);
+  pinMode(CH_PIN, OUTPUT);
 
   Serial.begin(115200);
 
@@ -108,6 +138,8 @@ void setup(void){;
   server.on("/temperature", handleTemp);
   server.on("/humidity", handleHumidity);
   server.on("/heat_index", handleHeatIndex);
+  server.on("/chon", handleChOn);
+  server.on("/choff", handleChOff);
   server.onNotFound(handleNotFound);
   server.begin();
 
@@ -117,10 +149,26 @@ void setup(void){;
 }
 
 void loop(void){
-  if (WiFi.status() == WL_CONNECTED) {
-    digitalWrite(WIFI_LED, LOW);
+//  if (WiFi.status() == WL_CONNECTED) {
+//    digitalWrite(WIFI_LED, LOW);
+//  } else {
+//    digitalWrite(WIFI_LED, HIGH);
+//  }
+
+  if (chIsOn && (millis() - chOnTime) > 10000) {
+    digitalWrite(CH_PIN, LOW);
+    chIsOn = false;
+  }
+
+  if (chIsOn && chSetOn) {
+    digitalWrite(SENSOR_LED, LOW);
+  } else if (!chIsOn && chSetOn) {
+    if ((millis() - ledToggledTime) > 250) {
+      digitalWrite(SENSOR_LED, !digitalRead(SENSOR_LED));
+      ledToggledTime = millis();
+    }
   } else {
-    digitalWrite(WIFI_LED, HIGH);
+    digitalWrite(SENSOR_LED, HIGH);
   }
   
   server.handleClient();
