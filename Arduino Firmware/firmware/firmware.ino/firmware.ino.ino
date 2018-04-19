@@ -7,12 +7,7 @@
 
 #define CH_PIN 12
 #define WIFI_LED 13
-// When changing the sensor LED pin to the correct
-// GPIO one, also change the digitalWrite and digitalRead
-// calls to reverse HIGH/LOW (Pin 13 needs pulled low for
-// the LED to light!)
-//#define SENSOR_LED 4
-#define SENSOR_LED 13
+#define SENSOR_LED 4
 #define DHT_PIN 14
 #define DHT_TYPE DHT21
 #define DEFAULT_CH_TIMEOUT_SECONDS 30;
@@ -25,7 +20,7 @@ unsigned long ledToggledTime;
 int ledNextToggleDelay = 0;
 bool chIsOn = false;
 bool chSetOn = false;
-bool defaultSensorLedStatus = HIGH;
+bool defaultSensorLedStatus = LOW;
 int chTimeoutSeconds = DEFAULT_CH_TIMEOUT_SECONDS;
 
 bool waitForWiFi() {
@@ -111,7 +106,7 @@ void handleChOff() {
 
 void handleSensorLedOn() {
   digitalWrite(WIFI_LED, HIGH);
-  defaultSensorLedStatus = LOW;
+  defaultSensorLedStatus = HIGH;
 
   server.send(200, "text/plain", "ok");
   digitalWrite(WIFI_LED, LOW);
@@ -119,7 +114,7 @@ void handleSensorLedOn() {
 
 void handleSensorLedOff() {
   digitalWrite(WIFI_LED, HIGH);
-  defaultSensorLedStatus = HIGH;
+  defaultSensorLedStatus = LOW;
 
   server.send(200, "text/plain", "ok");
   digitalWrite(WIFI_LED, LOW);
@@ -146,6 +141,8 @@ void handleNotFound(){
 void setup(void){;
   pinMode(WIFI_LED, OUTPUT);
   pinMode(CH_PIN, OUTPUT);
+  pinMode(SENSOR_LED, OUTPUT);
+  pinMode(DHT_PIN, INPUT);
 
   Serial.begin(115200);
 
@@ -170,11 +167,11 @@ void setup(void){;
 }
 
 void loop(void){
-//  if (WiFi.status() == WL_CONNECTED) {
-//    digitalWrite(WIFI_LED, LOW);
-//  } else {
-//    digitalWrite(WIFI_LED, HIGH);
-//  }
+  if (WiFi.status() == WL_CONNECTED) {
+    digitalWrite(WIFI_LED, LOW);
+  } else {
+    digitalWrite(WIFI_LED, HIGH);
+  }
 
   if (chIsOn && (millis() - chOnTime) > (chTimeoutSeconds * 1000)) {
     digitalWrite(CH_PIN, LOW);
@@ -185,7 +182,7 @@ void loop(void){
     if ((millis() - ledToggledTime) > ledNextToggleDelay) {
       digitalWrite(SENSOR_LED, !digitalRead(SENSOR_LED));
       ledToggledTime = millis();
-      if (!digitalRead(SENSOR_LED)) {
+      if (digitalRead(SENSOR_LED)) {
         ledNextToggleDelay = 1000;
       } else {
         ledNextToggleDelay = 100;
