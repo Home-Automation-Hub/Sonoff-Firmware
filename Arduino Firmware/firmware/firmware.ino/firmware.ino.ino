@@ -74,32 +74,6 @@ void publishSensors() {
   digitalWrite(WIFI_LED, LOW);
 }
 
-void handleChOn() {
-  digitalWrite(WIFI_LED, HIGH);
-  digitalWrite(CH_PIN, HIGH);
-  chIsOn = true;
-  chSetOn = true;
-  chOnTime = millis();
-//
-//  chTimeoutSeconds = DEFAULT_CH_TIMEOUT_SECONDS;
-//  for (int i = 0; i < server.args(); i++) {
-//    if (strcmp(server.argName(i).c_str(), "timeout") == 0) {
-//      chTimeoutSeconds = atoi(server.arg(i).c_str());
-//    }
-//  } 
-
-  digitalWrite(WIFI_LED, LOW);
-}
-//
-//void handleChOff() {
-//  digitalWrite(WIFI_LED, HIGH);
-//  digitalWrite(CH_PIN, LOW);
-//  chIsOn = false;
-//  chSetOn = false;
-//
-//  digitalWrite(WIFI_LED, LOW);
-//}
-
 void subscriber_sensorLed(String topic, String message) {
   digitalWrite(WIFI_LED, HIGH);
 
