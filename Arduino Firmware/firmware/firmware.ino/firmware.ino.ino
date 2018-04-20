@@ -1,9 +1,10 @@
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
-#include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
 #include "SerialCommands.h"
 #include "DHT.h"
+#include <PubSubClient.h>
+#include <PubSubClientTools.h>
 
 #define CH_PIN 12
 #define WIFI_LED 13
@@ -12,16 +13,25 @@
 #define DHT_TYPE DHT21
 #define DEFAULT_CH_TIMEOUT_SECONDS 30;
 
-ESP8266WebServer server(80);
+#define MQTT_SERVER "10.114.1.101"
+#define MQTT_PORT 1883
+#define MQTT_TOPIC_PREFIX "flat/heating/hallway/"
+#define DEVICE_NAME "hallway"
+
 DHT dht(DHT_PIN, DHT_TYPE);
 
 unsigned long chOnTime;
 unsigned long ledToggledTime;
+unsigned long sensorPublishedTime;
 int ledNextToggleDelay = 0;
 bool chIsOn = false;
 bool chSetOn = false;
 bool defaultSensorLedStatus = LOW;
 int chTimeoutSeconds = DEFAULT_CH_TIMEOUT_SECONDS;
+
+WiFiClient wifiClient;
+PubSubClient mqttClient(MQTT_SERVER, MQTT_PORT, wifiClient);
+PubSubClientTools mqtt(mqttClient);
 
 bool waitForWiFi() {
   int connectAttemptCount = 0;
@@ -41,16 +51,10 @@ bool waitForWiFi() {
   }
 }
 
-void handleRoot() {
-  digitalWrite(WIFI_LED, HIGH);
-  server.send(200, "text/plain", "hello from esp8266!");
-  delay(100);
-  digitalWrite(WIFI_LED, LOW);
-}
-
-void handleReadSensors() {
+void publishSensors() {
   digitalWrite(WIFI_LED, HIGH);
 
+  Serial.println("Reading");
   float temperature = dht.readTemperature();
   float humidity = dht.readHumidity();
   float heatIndex = dht.computeHeatIndex(temperature, humidity, false);
@@ -63,16 +67,10 @@ void handleReadSensors() {
   dtostrf(humidity, 6, 2, humidityStr);
   dtostrf(heatIndex, 6, 2, heatIndexStr);
 
-  String response = "{";
-  response += "\n  temperature: ";
-  response += temperatureStr;
-  response += ",\n  humidity: ";
-  response += humidityStr;
-  response += ",\n  heatIndex: ";
-  response += heatIndexStr;
-  response += "\n}\n";
+  mqtt.publish("temperature", temperatureStr);
+  mqtt.publish("humidity", humidityStr);
+  mqtt.publish("heat_index", heatIndexStr);
   
-  server.send(200, "application/json", response);
   digitalWrite(WIFI_LED, LOW);
 }
 
@@ -82,59 +80,59 @@ void handleChOn() {
   chIsOn = true;
   chSetOn = true;
   chOnTime = millis();
+//
+//  chTimeoutSeconds = DEFAULT_CH_TIMEOUT_SECONDS;
+//  for (int i = 0; i < server.args(); i++) {
+//    if (strcmp(server.argName(i).c_str(), "timeout") == 0) {
+//      chTimeoutSeconds = atoi(server.arg(i).c_str());
+//    }
+//  } 
 
-  chTimeoutSeconds = DEFAULT_CH_TIMEOUT_SECONDS;
-  for (int i = 0; i < server.args(); i++) {
-    if (strcmp(server.argName(i).c_str(), "timeout") == 0) {
-      chTimeoutSeconds = atoi(server.arg(i).c_str());
-    }
-  } 
-
-  server.send(200, "text/plain", "ok");
   digitalWrite(WIFI_LED, LOW);
 }
+//
+//void handleChOff() {
+//  digitalWrite(WIFI_LED, HIGH);
+//  digitalWrite(CH_PIN, LOW);
+//  chIsOn = false;
+//  chSetOn = false;
+//
+//  digitalWrite(WIFI_LED, LOW);
+//}
 
-void handleChOff() {
+void subscriber_sensorLed(String topic, String message) {
   digitalWrite(WIFI_LED, HIGH);
-  digitalWrite(CH_PIN, LOW);
-  chIsOn = false;
-  chSetOn = false;
 
-  server.send(200, "text/plain", "ok");
-  digitalWrite(WIFI_LED, LOW);
-}
-
-void handleSensorLedOn() {
-  digitalWrite(WIFI_LED, HIGH);
-  defaultSensorLedStatus = HIGH;
-
-  server.send(200, "text/plain", "ok");
-  digitalWrite(WIFI_LED, LOW);
-}
-
-void handleSensorLedOff() {
-  digitalWrite(WIFI_LED, HIGH);
-  defaultSensorLedStatus = LOW;
-
-  server.send(200, "text/plain", "ok");
-  digitalWrite(WIFI_LED, LOW);
-}
-
-void handleNotFound(){
-  digitalWrite(WIFI_LED, HIGH);
-  String message = "File Not Found\n\n";
-  message += "URI: ";
-  message += server.uri();
-  message += "\nMethod: ";
-  message += (server.method() == HTTP_GET)?"GET":"POST";
-  message += "\nArguments: ";
-  message += server.args();
-  message += "\n";
-  for (uint8_t i=0; i<server.args(); i++){
-    message += " " + server.argName(i) + ": " + server.arg(i) + "\n";
+  if (message.equals("on")) {
+    defaultSensorLedStatus = HIGH;
+  } else if (message.equals("off")) {
+    defaultSensorLedStatus = LOW;
   }
-  server.send(404, "text/plain", message);
-  delay(100);
+}
+
+void subscriber_chState(String topic, String message) {
+  digitalWrite(WIFI_LED, HIGH);
+
+  String command = message;
+  chTimeoutSeconds = DEFAULT_CH_TIMEOUT_SECONDS;
+  int separatorIndex = message.indexOf(",");
+  if (separatorIndex != -1) {
+    command = message.substring(0, separatorIndex);
+    chTimeoutSeconds = message.substring(separatorIndex+1).toInt();
+  }
+
+  if (command.equals("on")) {
+    digitalWrite(CH_PIN, HIGH);
+    chIsOn = true;
+    chSetOn = true;
+    chOnTime = millis();
+  } else if (command.equals("off")) {
+    digitalWrite(CH_PIN, LOW);
+    chIsOn = false;
+    chSetOn = false;
+  }
+
+
   digitalWrite(WIFI_LED, LOW);
 }
 
@@ -149,17 +147,20 @@ void setup(void){;
   WiFi.begin();
   WiFi.persistent(true);
 
-  waitForWiFi();
-
-  Serial.println("Starting HTTP Server");
-  server.on("/", handleRoot);
-  server.on("/read_sensors", handleReadSensors);
-  server.on("/chon", handleChOn);
-  server.on("/choff", handleChOff);
-  server.on("/sensorLedOn", handleSensorLedOn);
-  server.on("/sensorLedOff", handleSensorLedOff);
-  server.onNotFound(handleNotFound);
-  server.begin();
+  boolean wifiConnected = waitForWiFi();
+  if (wifiConnected) {
+    Serial.println("Connecting to MQTT Broker...");
+    if (mqttClient.connect(DEVICE_NAME)) {
+      Serial.println("Connected!");
+      mqtt.setSubscribePrefix(MQTT_TOPIC_PREFIX);
+      mqtt.setPublishPrefix(MQTT_TOPIC_PREFIX);
+      mqtt.subscribe("sensorLed", subscriber_sensorLed);
+      mqtt.subscribe("chState", subscriber_chState);
+    } else {
+      Serial.println("Connection failed!");
+      Serial.println(mqttClient.state());
+    }
+  }
 
   dht.begin();
 
@@ -196,7 +197,12 @@ void loop(void){
   } else {
     digitalWrite(SENSOR_LED, defaultSensorLedStatus);
   }
-  
-  server.handleClient();
+
+  if ((millis() - sensorPublishedTime) > 10000) {
+    publishSensors();
+    sensorPublishedTime = millis();
+  }
+
+  mqttClient.loop();  
   serialLoop();
 }
