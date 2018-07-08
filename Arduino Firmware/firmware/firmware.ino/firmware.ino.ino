@@ -13,7 +13,7 @@
 #define DHT_TYPE DHT21
 #define DEFAULT_CH_TIMEOUT_SECONDS 30;
 
-#define MQTT_SERVER "10.114.1.101"
+#define MQTT_SERVER "10.114.1.136"
 #define MQTT_PORT 1883
 #define MQTT_TOPIC_PREFIX "flat/heating/hallway/"
 #define DEVICE_NAME "hallway"
@@ -62,7 +62,7 @@ void publishSensors() {
   char temperatureStr[7];
   char humidityStr[7];
   char heatIndexStr[7];
-  
+
   dtostrf(temperature, 6, 2, temperatureStr);
   dtostrf(humidity, 6, 2, humidityStr);
   dtostrf(heatIndex, 6, 2, heatIndexStr);
@@ -70,7 +70,7 @@ void publishSensors() {
   mqtt.publish("temperature", temperatureStr);
   mqtt.publish("humidity", humidityStr);
   mqtt.publish("heat_index", heatIndexStr);
-  
+
   digitalWrite(WIFI_LED, LOW);
 }
 
@@ -92,7 +92,7 @@ void subscriber_chState(String topic, String message) {
   int separatorIndex = message.indexOf(",");
   if (separatorIndex != -1) {
     command = message.substring(0, separatorIndex);
-    chTimeoutSeconds = message.substring(separatorIndex+1).toInt();
+    chTimeoutSeconds = message.substring(separatorIndex + 1).toInt();
   }
 
   if (command.equals("on")) {
@@ -110,7 +110,7 @@ void subscriber_chState(String topic, String message) {
   digitalWrite(WIFI_LED, LOW);
 }
 
-void setup(void){;
+void setup(void) {
   pinMode(WIFI_LED, OUTPUT);
   pinMode(CH_PIN, OUTPUT);
   pinMode(SENSOR_LED, OUTPUT);
@@ -141,7 +141,7 @@ void setup(void){;
   serialSetup();
 }
 
-void loop(void){
+void loop(void) {
   if (WiFi.status() == WL_CONNECTED) {
     digitalWrite(WIFI_LED, LOW);
   } else {
@@ -177,6 +177,6 @@ void loop(void){
     sensorPublishedTime = millis();
   }
 
-  mqttClient.loop();  
+  mqttClient.loop();
   serialLoop();
 }
