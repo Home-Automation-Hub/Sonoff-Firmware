@@ -123,7 +123,16 @@ void setup(void) {
 
   boolean wifiConnected = waitForWiFi();
   if (wifiConnected) {
-    Serial.println("Connecting to MQTT Broker...");
+    connectMqtt();
+  }
+
+  dht.begin();
+
+  serialSetup();
+}
+
+void connectMqtt() {
+  Serial.println("Connecting to MQTT Broker...");
     if (mqttClient.connect(DEVICE_NAME)) {
       Serial.println("Connected!");
       mqtt.setSubscribePrefix(MQTT_TOPIC_PREFIX);
@@ -134,14 +143,25 @@ void setup(void) {
       Serial.println("Connection failed!");
       Serial.println(mqttClient.state());
     }
-  }
-
-  dht.begin();
-
-  serialSetup();
 }
 
 void loop(void) {
+  // Only continue with the loop if we are actually connected to the
+  // MQTT broker, otherwise periodically retry connecting
+  if (mqttClient.state() != 0) {
+    Serial.println("Not connected to MQTT broker, retrying in 10 seconds...");
+    
+    for(size_t i = 0; i < 80; i++)
+    {
+      digitalWrite(WIFI_LED, !digitalRead(WIFI_LED));
+      delay(125);
+    }
+    digitalWrite(WIFI_LED, HIGH);
+    
+    connectMqtt();
+    return;
+  }
+
   if (WiFi.status() == WL_CONNECTED) {
     digitalWrite(WIFI_LED, LOW);
   } else {
