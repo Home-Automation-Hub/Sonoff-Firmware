@@ -5,7 +5,9 @@
 #include "DHT.h"
 #include <PubSubClient.h>
 #include <PubSubClientTools.h>
+#include <EEPROM.h>
 
+#define BUTTON_PIN 0
 #define CH_PIN 12
 #define WIFI_LED 13
 #define SENSOR_LED 4
@@ -18,6 +20,21 @@
 #define MQTT_TOPIC_PREFIX "flat/heating/hallway/"
 #define DEVICE_NAME "hallway"
 
+// Define addresses and lengths of variables to store in EEPROM
+#define EEPROM_MQTT_SERVER_ADDR 0
+#define EEPROM_MQTT_SERVER_LEN 16
+#define EEPROM_MQTT_SERVER_PORT_ADDR 20 // Integer so 4 bytes
+#define EEPROM_MQTT_TOPIC_PREFIX_ADDR 25
+#define EEPROM_MQTT_TOPIC_PREFIX_LEN 70
+#define EEPROM_MQTT_DEVICE_NAME_ADDR 100
+#define EEPROM_MQTT_DEVICE_NAME_LEN 25
+
+// Variables to hold settings that will be retrieved from EEPROM
+char mqttServer[EEPROM_MQTT_SERVER_LEN] = "";
+int mqttPort = 0;
+char mqttTopicPrefix[EEPROM_MQTT_TOPIC_PREFIX_LEN] = "";
+char mqttDeviceName[EEPROM_MQTT_DEVICE_NAME_LEN] = "";
+
 DHT dht(DHT_PIN, DHT_TYPE);
 
 unsigned long chOnTime;
@@ -28,6 +45,7 @@ bool chIsOn = false;
 bool chSetOn = false;
 bool defaultSensorLedStatus = LOW;
 int chTimeoutSeconds = DEFAULT_CH_TIMEOUT_SECONDS;
+bool setupMode = false;
 
 WiFiClient wifiClient;
 PubSubClient mqttClient(MQTT_SERVER, MQTT_PORT, wifiClient);
@@ -49,6 +67,21 @@ bool waitForWiFi() {
     Serial.println("Connection failed!");
     return false;
   }
+}
+
+void loadSettings() {
+  EEPROM.get(EEPROM_MQTT_SERVER_ADDR, mqttServer);
+  EEPROM.get(EEPROM_MQTT_SERVER_PORT_ADDR, mqttPort);
+  EEPROM.get(EEPROM_MQTT_TOPIC_PREFIX_ADDR, mqttTopicPrefix);
+  EEPROM.get(EEPROM_MQTT_DEVICE_NAME_ADDR, mqttDeviceName);
+}
+
+void saveSettings() {
+  EEPROM.put(EEPROM_MQTT_SERVER_ADDR, mqttServer);
+  EEPROM.put(EEPROM_MQTT_SERVER_PORT_ADDR, mqttPort);
+  EEPROM.put(EEPROM_MQTT_TOPIC_PREFIX_ADDR, mqttTopicPrefix);
+  EEPROM.put(EEPROM_MQTT_DEVICE_NAME_ADDR, mqttDeviceName);
+  EEPROM.commit();
 }
 
 void publishSensors() {
@@ -115,8 +148,38 @@ void setup(void) {
   pinMode(CH_PIN, OUTPUT);
   pinMode(SENSOR_LED, OUTPUT);
   pinMode(DHT_PIN, INPUT);
+  pinMode(BUTTON_PIN, INPUT);
+
+  digitalWrite(WIFI_LED, LOW);
 
   Serial.begin(115200);
+  EEPROM.begin(4096);
+  
+  for(size_t i = 0; i < 1000; i++)
+  {
+    if (digitalRead(BUTTON_PIN) == 0) {
+      setupMode = true;
+    }
+    delay(10);
+  }
+
+  if (setupMode) {
+    Serial.println("STARTING UP IN SETUP MODE!");
+  }
+
+  Serial.println("Reading configuration from EEPROM...");
+  loadSettings();
+
+  Serial.print("MQTT Server: ");
+  Serial.println(String(mqttServer));
+  Serial.print("MQTT Port: ");
+  Serial.println(mqttPort);
+  Serial.print("MQTT Topic Prefix: ");
+  Serial.println(mqttTopicPrefix);
+  Serial.print("MQTT Device Name: ");
+  Serial.println(mqttDeviceName);
+
+  Serial.println("Loaded!");
 
   WiFi.begin();
   WiFi.persistent(true);
@@ -133,20 +196,26 @@ void setup(void) {
 
 void connectMqtt() {
   Serial.println("Connecting to MQTT Broker...");
-    if (mqttClient.connect(DEVICE_NAME)) {
-      Serial.println("Connected!");
-      mqtt.setSubscribePrefix(MQTT_TOPIC_PREFIX);
-      mqtt.setPublishPrefix(MQTT_TOPIC_PREFIX);
-      mqtt.subscribe("sensorLed", subscriber_sensorLed);
-      mqtt.subscribe("chState", subscriber_chState);
-    } else {
-      Serial.println("Connection failed!");
-      Serial.println(mqttClient.state());
-    }
+  if (mqttClient.connect(DEVICE_NAME)) {
+    Serial.println("Connected!");
+    mqtt.setSubscribePrefix(MQTT_TOPIC_PREFIX);
+    mqtt.setPublishPrefix(MQTT_TOPIC_PREFIX);
+    mqtt.subscribe("sensorLed", subscriber_sensorLed);
+    mqtt.subscribe("chState", subscriber_chState);
+  } else {
+    Serial.println("Connection failed!");
+    Serial.println(mqttClient.state());
+  }
 }
 
 void loop(void) {
   serialLoop();
+
+  // Do not run any other logic if we are in setup mode, just allow the
+  // serial console to be used
+  if (setupMode) {
+    return;
+  }
 
   // Only continue with the loop if we are actually connected to the
   // MQTT broker, otherwise periodically retry connecting

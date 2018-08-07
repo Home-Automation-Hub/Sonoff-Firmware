@@ -10,6 +10,18 @@ void cmd_get_ip(SerialCommands* sender) {
 }
 SerialCommand cmd_get_ip_("ip?", cmd_get_ip);
 
+void cmd_get_mqtt(SerialCommands* sender) {
+  sender->GetSerial()->print("MQTT Server: "); 
+  sender->GetSerial()->println(String(mqttServer));
+  sender->GetSerial()->print("MQTT Port: ");
+  sender->GetSerial()->println(mqttPort);
+  sender->GetSerial()->print("MQTT Topic Prefix: ");
+  sender->GetSerial()->println(mqttTopicPrefix);
+  sender->GetSerial()->print("MQTT Device Name: ");
+  sender->GetSerial()->println(mqttDeviceName);
+}
+SerialCommand cmd_get_mqtt_("mqtt?", cmd_get_mqtt);
+
 void cmd_restart(SerialCommands* sender) {
   sender->GetSerial()->println("Restarting...");
   ESP.restart();
@@ -40,12 +52,53 @@ void cmd_connect_wifi(SerialCommands* sender) {
 }
 SerialCommand cmd_connect_wifi_("connect-wifi", cmd_connect_wifi);
 
+void cmd_set_mqtt_broker(SerialCommands* sender) {
+  char* ip = sender->Next();
+  char* port_str = sender->Next();
+  
+  strncpy(mqttServer, ip, EEPROM_MQTT_SERVER_LEN);
+  mqttPort = atoi(port_str);
+
+  sender->GetSerial()->println("Ok");
+}
+SerialCommand cmd_set_mqtt_broker_("set-mqtt-broker", cmd_set_mqtt_broker);
+
+void cmd_set_mqtt_topic_prefix(SerialCommands* sender) {
+  char* prefix = sender->Next();
+  
+  strncpy(mqttTopicPrefix, prefix, EEPROM_MQTT_TOPIC_PREFIX_LEN);
+
+  sender->GetSerial()->println("Ok");
+}
+SerialCommand cmd_set_mqtt_topic_prefix_("set-mqtt-topic-prefix", cmd_set_mqtt_topic_prefix);
+
+void cmd_set_mqtt_device_name(SerialCommands* sender) {
+  char* name = sender->Next();
+  
+  strncpy(mqttDeviceName, name, EEPROM_MQTT_DEVICE_NAME_LEN);
+
+  sender->GetSerial()->println("Ok");
+}
+SerialCommand cmd_set_mqtt_device_name_("set-mqtt-device-name", cmd_set_mqtt_device_name);
+
+void cmd_commit(SerialCommands* sender) {
+  saveSettings();
+
+  sender->GetSerial()->println("Ok");
+}
+SerialCommand cmd_commit_("commit", cmd_commit);
+
 void cmd_help(SerialCommands* sender) {
   sender->GetSerial()->println("Available Commands:");
-  sender->GetSerial()->println("  ip?                       - Print current IP address");
-  sender->GetSerial()->println("  restart                   - Reboot device");
-  sender->GetSerial()->println("  reset-all                 - Remove WiFi credentials and reboot");
-  sender->GetSerial()->println("  connect-wifi [SSID] [KEY] - Set Wifi credentials");
+  sender->GetSerial()->println("  ip?                            - Print current IP address");
+  sender->GetSerial()->println("  mqtt?                          - Print MQTT broker connection settings");
+  sender->GetSerial()->println("  restart                        - Reboot device");
+  sender->GetSerial()->println("  reset-all                      - Remove WiFi credentials and reboot");
+  sender->GetSerial()->println("  connect-wifi [SSID] [KEY]      - Set Wifi credentials");
+  sender->GetSerial()->println("  set-mqtt-broker [IP] [PORT]    - Set MQTT broker connection settings");
+  sender->GetSerial()->println("  set-mqtt-topic-prefix [PREFIX] - Set MQTT topic prefix");
+  sender->GetSerial()->println("  set-mqtt-device-name [NAME]    - Set MQTT device name");
+  sender->GetSerial()->println("  commit                         - Write all config changes to flash");
 }
 SerialCommand cmd_help_("help", cmd_help);
 
@@ -57,6 +110,11 @@ void serialSetup() {
   serial_commands_.AddCommand(&cmd_restart_);
   serial_commands_.AddCommand(&cmd_reset_all_);
   serial_commands_.AddCommand(&cmd_connect_wifi_);
+  serial_commands_.AddCommand(&cmd_get_mqtt_);
+  serial_commands_.AddCommand(&cmd_set_mqtt_broker_);
+  serial_commands_.AddCommand(&cmd_set_mqtt_topic_prefix_);
+  serial_commands_.AddCommand(&cmd_set_mqtt_device_name_);
+  serial_commands_.AddCommand(&cmd_commit_);
 }
 
 void serialLoop() {
