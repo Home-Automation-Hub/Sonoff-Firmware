@@ -15,11 +15,6 @@
 #define DHT_TYPE DHT21
 #define DEFAULT_CH_TIMEOUT_SECONDS 30;
 
-#define MQTT_SERVER "10.114.1.136"
-#define MQTT_PORT 1883
-#define MQTT_TOPIC_PREFIX "flat/heating/hallway/"
-#define DEVICE_NAME "hallway"
-
 // Define addresses and lengths of variables to store in EEPROM
 #define EEPROM_MQTT_SERVER_ADDR 0
 #define EEPROM_MQTT_SERVER_LEN 16
@@ -48,7 +43,7 @@ int chTimeoutSeconds = DEFAULT_CH_TIMEOUT_SECONDS;
 bool setupMode = false;
 
 WiFiClient wifiClient;
-PubSubClient mqttClient(MQTT_SERVER, MQTT_PORT, wifiClient);
+PubSubClient mqttClient(wifiClient);
 PubSubClientTools mqtt(mqttClient);
 
 bool waitForWiFi() {
@@ -181,6 +176,8 @@ void setup(void) {
 
   Serial.println("Loaded!");
 
+  mqttClient.setServer(mqttServer, mqttPort);
+
   WiFi.begin();
   WiFi.persistent(true);
 
@@ -196,10 +193,10 @@ void setup(void) {
 
 void connectMqtt() {
   Serial.println("Connecting to MQTT Broker...");
-  if (mqttClient.connect(DEVICE_NAME)) {
+  if (mqttClient.connect(mqttDeviceName)) {
     Serial.println("Connected!");
-    mqtt.setSubscribePrefix(MQTT_TOPIC_PREFIX);
-    mqtt.setPublishPrefix(MQTT_TOPIC_PREFIX);
+    mqtt.setSubscribePrefix(mqttTopicPrefix);
+    mqtt.setPublishPrefix(mqttTopicPrefix);
     mqtt.subscribe("sensorLed", subscriber_sensorLed);
     mqtt.subscribe("chState", subscriber_chState);
   } else {
