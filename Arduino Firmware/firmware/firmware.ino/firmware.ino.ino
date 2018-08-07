@@ -146,6 +146,8 @@ void connectMqtt() {
 }
 
 void loop(void) {
+  serialLoop();
+
   // Only continue with the loop if we are actually connected to the
   // MQTT broker, otherwise periodically retry connecting
   if (mqttClient.state() != 0) {
@@ -198,5 +200,4 @@ void loop(void) {
   }
 
   mqttClient.loop();
-  serialLoop();
 }
